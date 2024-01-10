@@ -1,0 +1,19 @@
+html {
+    min-height: 100%;
+    background-color: #F4F4F9;
+}
+
+body {
+    margin: 0px;
+    font-family: 'Roboto', sans-serif;
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.btn{
+    width: 100px;
+}
