@@ -37,10 +37,10 @@ def video_detection(path_x):
                             [255, 255, 255], thickness=1, lineType=cv2.LINE_AA)
         yield img
 
-
         # out.write(img)
         # cv2.imshow("image", img)
         # if cv2.waitKey(1) & 0xFF==ord('1'):
         # break
     # out.release()
+        # aaa
 cv2.destroyAllWindows()
