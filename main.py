@@ -10,9 +10,21 @@ app = Flask(__name__)
 camera = cv2.VideoCapture(0)
 
 model = torch.hub.load("ultralytics/yolov5", "custom", path="./best.pt")
-
+model.names[1] = "baton"
+model.names[2] = "plier"
+model.names[3] = "hammer"
+model.names[4] = "lighter"
+model.names[5] = "scissors"
+model.names[6] = "wrench"
+model.names[7] = "gun"
+model.names[8] = "bullet"
+model.names[9] = "sprayer"
+model.names[10] = "handcuffs"
+model.names[11] = "knife"
+model.names[12] = "powerbank"
+# model.classes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 model.eval()
-model.conf = 0.25
+model.conf = 0.35
 model.iou = 0.45
 
 greyscale = False
@@ -38,7 +50,7 @@ def set_filter_status(filters_list):
 
 
 def generate_frames():
-    global greyscale, edge, sharpening, bilateral, negative, brightness, contrast, sharpening
+    global greyscale, edge, sharpening, bilateral, negative, brightness, contrast
 
     while camera.isOpened():
         # read the camera frame
@@ -53,13 +65,13 @@ def generate_frames():
                 result = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             else:
                 if edge:
-                    result = cv2.Canny(result, 100, 50)
+                    result = cv2.Canny(frame, 100, 50)
 
                 if bilateral:
-                    result = cv2.bilateralFilter(result, 9, 75, 75)
+                    result = cv2.bilateralFilter(frame, 9, 75, 75)
 
                 if negative:
-                    result = cv2.bitwise_not(result)
+                    result = cv2.bitwise_not(frame)
 
                 if sharpening:
                     result = cv2.filter2D(

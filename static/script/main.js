@@ -35,11 +35,6 @@ function startTimer() {
 		// Calculate the time elapsed since the timer started
 		const elapsedTime = Date.now() - startTime;
 
-		if (elapsedTime == 60000) {
-			alert("Azami süreyi aştınız. Yeni kullanıcı girişi yapınız!");
-			clearInterval();
-		}
-
 		// Calculate the minutes and seconds
 		const minutes = Math.floor(elapsedTime / 60000);
 		const seconds = Math.floor(elapsedTime / 1000) % 60;
@@ -50,14 +45,6 @@ function startTimer() {
 			":" +
 			(seconds < 10 ? "0" + seconds : seconds);
 	}, 1000);
-
-	// Add an event listener to the stop button to stop the timer
-	// document
-	// 	.getElementById("kullanici_giris")
-	// 	.addEventListener("click", function () {
-	// 		// startTime = Date.now();
-	// 		startTimer();
-	// 	});
 }
 
 const startWebcam = () => {
