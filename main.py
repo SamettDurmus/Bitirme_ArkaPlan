@@ -1,28 +1,14 @@
-from flask import Flask, render_template, request, Response
+from flask import Flask, request, Response, jsonify
+from flask_cors import CORS
 import cv2
 import torch
-from io import BytesIO
-from PIL import Image
 import numpy as np
 
-# WSGI Application
 app = Flask(__name__)
-camera = cv2.VideoCapture(0)
+CORS(app)
 
 model = torch.hub.load("ultralytics/yolov5", "custom", path="./best.pt")
-model.names[1] = "baton"
-model.names[2] = "plier"
-model.names[3] = "hammer"
-model.names[4] = "lighter"
-model.names[5] = "scissors"
-model.names[6] = "wrench"
-model.names[7] = "gun"
-model.names[8] = "bullet"
-model.names[9] = "sprayer"
-model.names[10] = "handcuffs"
-model.names[11] = "knife"
-model.names[12] = "powerbank"
-# model.classes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
 model.eval()
 model.conf = 0.35
 model.iou = 0.45
@@ -49,88 +35,69 @@ def set_filter_status(filters_list):
     negative = "negative" in filters_list
 
 
-def generate_frames():
+def process_image(image):
     global greyscale, edge, sharpening, bilateral, negative, brightness, contrast
 
-    while camera.isOpened():
-        # read the camera frame
-        success, frame = camera.read()
-        if not success:
-            break
-        else:
-            frame = cv2.flip(frame, 1)
-            result = frame.copy()
+    result = np.array(image)
+    if greyscale:
+        result = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+    else:
+        if edge:
+            result = cv2.Canny(result, 100, 50)
 
-            if greyscale:
-                result = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            else:
-                if edge:
-                    result = cv2.Canny(frame, 100, 50)
+        if bilateral:
+            result = cv2.bilateralFilter(result, 9, 75, 75)
 
-                if bilateral:
-                    result = cv2.bilateralFilter(frame, 9, 75, 75)
+        if negative:
+            result = cv2.bitwise_not(result)
 
-                if negative:
-                    result = cv2.bitwise_not(frame)
+        if sharpening:
+            result = cv2.filter2D(
+                result, -1, np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
 
-                if sharpening:
-                    result = cv2.filter2D(
-                        result, -1, np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]]))
+    result = cv2.convertScaleAbs(
+        result, alpha=contrast, beta=brightness)
 
-            result = cv2.convertScaleAbs(
-                result, alpha=contrast, beta=brightness)
-
-            ret, buffer = cv2.imencode('.jpg', result)
-            result = buffer.tobytes()
-
-            img = Image.open(BytesIO(result))
-            results = model(img, size=640)
-            img = np.squeeze(results.render())
-            img_BGR = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            result = cv2.imencode('.jpg', img_BGR)[1].tobytes()
-
-        yield (b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + result + b"\r\n")
+    return result
 
 
-def generate_frames_original():
-    while True:
-        # read the camera frame
-        success, frame = camera.read()
-        frame = cv2.flip(frame, 1)
-        # xray camerası kullanırken gerekli olur mu bilmiyorum ama sanırım değil
-        if not success:
-            break
-        else:
-            ret, buffer = cv2.imencode('.jpg', frame)
-            frame = buffer.tobytes()
-        yield (b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
+def detect_objects(image):
+    results = model(image, size=640)
+    img = np.squeeze(results.render())
+    img_BGR = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    return img_BGR
 
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    global filters_list, brightness, contrast
+@app.route("/detect_objects", methods=["GET","POST"])
+def detect_objects_endpoint():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No file part'})
 
-    if request.method == "POST":
-        filters_list = request.form.getlist("filters")
-        set_filter_status(filters_list)
+    file = request.files['image']
 
-        brightness = float(request.form.get("brightness")) if request.form.get(
-            "brightness") is not None else 0.0
-        contrast = float(request.form.get("contrast")) if request.form.get(
-            "contrast") is not None else 1.0
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'})
 
-    return render_template("main.html", edge=edge)
+    # Convert image to numpy array
+    img_array = np.frombuffer(file.read(), np.uint8)
+    image = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
 
+    # Process image
+    processed_image = process_image(image)
 
-@app.route("/edited_video")
-def edited_video():
-    return Response(generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    # Detect objects
+    detected_image = detect_objects(processed_image)
 
+    # Encode image to send as response
+    _, buffer = cv2.imencode('.jpg', detected_image)
+    response_image = buffer.tobytes()
 
-@app.route("/video")
-def video():
-    return Response(generate_frames_original(), mimetype="multipart/x-mixed-replace; boundary=frame")
+    return Response(response_image, mimetype="image/jpeg")
 
 
 if __name__ == "__main__":
-    app.run(debug=True, threaded=True)
+    app.run(debug=True)
+
+    
+    
+    # https://chatgpt.com/c/83990222-0f8c-4113-8457-3bb7bc4eb3c9
